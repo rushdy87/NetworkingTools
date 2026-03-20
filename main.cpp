@@ -1,11 +1,13 @@
 #include <iostream>
-#include "include/DNSResolver.hpp"
-#include "include/TcpClient.hpp"
-#include "include/TcpServer.hpp"
-#include "include/PortScanner.hpp"
+#include "DNSResolver.hpp"
 
 int main()
 {
-    std::cout << "NetworkingTools project started." << std::endl;
+    NetworkingTools::DNSResolver resolver;
+
+    std::string ip = resolver.resolve("google.com");
+
+    std::cout << "Resolved IP: " << ip << std::endl;
+
     return 0;
 }
