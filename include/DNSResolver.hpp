@@ -5,16 +5,33 @@
 
 namespace NetworkingTools
 {
+    enum class AddressFamily
+    {
+        IPv4,
+        IPv6,
+        Unknown
+    };
+
     struct ResolvedAddress
     {
         std::string ip;
-        std::string family;
+        AddressFamily family;
+    };
+
+    struct ResolveResult
+    {
+        bool success;
+        std::string hostname;
+        std::string errorMessage;
+        std::vector<ResolvedAddress> addresses;
     };
 
     class DNSResolver
     {
     public:
-        std::vector<ResolvedAddress> resolveAll(const std::string& hostname) const;
+        ResolveResult resolveAll(const std::string& hostname) const;
+        std::string resolveFirstIPv4(const std::string& hostname) const;
     };
-}
 
+    std::string addressFamilyToString(AddressFamily family);
+}

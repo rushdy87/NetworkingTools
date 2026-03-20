@@ -4,49 +4,66 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <cstring>
-#include <iostream>
+#include <set>
 
 namespace NetworkingTools
 {
-    std::vector<ResolvedAddress> DNSResolver::resolveAll(const std::string& hostname) const
+    std::string addressFamilyToString(AddressFamily family)
     {
+        switch (family)
+        {
+            case AddressFamily::IPv4:
+                return "IPv4";
+            case AddressFamily::IPv6:
+                return "IPv6";
+            default:
+                return "Unknown";
+        }
+    }
+
+    ResolveResult DNSResolver::resolveAll(const std::string& hostname) const
+    {
+        ResolveResult output;
+        output.success = false;
+        output.hostname = hostname;
+
         struct addrinfo hints;
         struct addrinfo* results = nullptr;
-        std::vector<ResolvedAddress> addresses;
+        std::set<std::string> uniqueAddresses;
 
         std::memset(&hints, 0, sizeof(hints));
-        hints.ai_family = AF_UNSPEC;       // IPv4 or IPv6, for IPv4-only use AF_INET, for IPv6-only use AF_INET6
-        hints.ai_socktype = SOCK_STREAM;   // TCP-style results
+        hints.ai_family = AF_UNSPEC;
 
-        int status = getaddrinfo(hostname.c_str(), nullptr, &hints, &results);
-
+        int status = getaddrinfo(hostname.c_str(), "80", &hints, &results);
         if (status != 0)
         {
-            std::cerr << "getaddrinfo failed: " << gai_strerror(status) << '\n';
-            return addresses;
+            output.errorMessage = gai_strerror(status);
+            return output;
         }
 
-        // results is a linked list of addrinfo structures, we need to iterate through it to extract the IP addresses
+        if (results == nullptr)
+        {
+            output.errorMessage = "No address information returned.";
+            return output;
+        }
 
         for (struct addrinfo* current = results; current != nullptr; current = current->ai_next)
         {
-            // std::cout << "ai_family = " << (current->ai_family == AF_INET ? "AF_INET" : (current->ai_family == AF_INET6 ? "AF_INET6" : "Unknown")) << '\n';
-
             char ipStr[INET6_ADDRSTRLEN];
             void* addrPtr = nullptr;
-            std::string family;
+            AddressFamily family = AddressFamily::Unknown;
 
             if (current->ai_family == AF_INET)
             {
                 struct sockaddr_in* ipv4 = reinterpret_cast<struct sockaddr_in*>(current->ai_addr);
                 addrPtr = &(ipv4->sin_addr);
-                family = "IPv4";
+                family = AddressFamily::IPv4;
             }
             else if (current->ai_family == AF_INET6)
             {
                 struct sockaddr_in6* ipv6 = reinterpret_cast<struct sockaddr_in6*>(current->ai_addr);
                 addrPtr = &(ipv6->sin6_addr);
-                family = "IPv6";
+                family = AddressFamily::IPv6;
             }
             else
             {
@@ -56,11 +73,45 @@ namespace NetworkingTools
             const char* converted = inet_ntop(current->ai_family, addrPtr, ipStr, sizeof(ipStr));
             if (converted != nullptr)
             {
-                addresses.push_back({ipStr, family});
+                std::string ip = ipStr;
+                std::string uniqueKey = addressFamilyToString(family) + ":" + ip;
+
+                if (uniqueAddresses.insert(uniqueKey).second)
+                {
+                    output.addresses.push_back({ip, family});
+                }
             }
         }
 
         freeaddrinfo(results);
-        return addresses;
+
+        if (output.addresses.empty())
+        {
+            output.errorMessage = "No usable IP addresses found.";
+            return output;
+        }
+
+        output.success = true;
+        return output;
+    }
+
+    std::string DNSResolver::resolveFirstIPv4(const std::string& hostname) const
+    {
+        ResolveResult result = resolveAll(hostname);
+
+        if (!result.success)
+        {
+            return "";
+        }
+
+        for (const auto& address : result.addresses)
+        {
+            if (address.family == AddressFamily::IPv4)
+            {
+                return address.ip;
+            }
+        }
+
+        return "";
     }
 }

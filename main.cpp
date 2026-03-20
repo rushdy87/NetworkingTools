@@ -1,6 +1,5 @@
 #include <iostream>
 #include <string>
-#include <vector>
 
 #include "DNSResolver.hpp"
 
@@ -25,19 +24,21 @@ int main(int argc, char* argv[])
         std::string hostname = argv[2];
 
         NetworkingTools::DNSResolver resolver;
-        std::vector<NetworkingTools::ResolvedAddress> addresses = resolver.resolveAll(hostname);
+        NetworkingTools::ResolveResult result = resolver.resolveAll(hostname);
 
-        if (addresses.empty())
+        if (!result.success)
         {
-            std::cout << "No addresses found for: " << hostname << '\n';
+            std::cout << "Failed to resolve " << result.hostname
+                      << ": " << result.errorMessage << '\n';
             return 1;
         }
 
-        std::cout << "Resolved addresses for " << hostname << ":\n";
+        std::cout << "Resolved addresses for " << result.hostname << ":\n";
 
-        for (const auto& address : addresses)
+        for (const auto& address : result.addresses)
         {
-            std::cout << address.family << ": " << address.ip << '\n';
+            std::cout << NetworkingTools::addressFamilyToString(address.family)
+                      << ": " << address.ip << '\n';
         }
 
         return 0;
