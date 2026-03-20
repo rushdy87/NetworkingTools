@@ -53,37 +53,36 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    if (command == "connect")
+    if (command == "http")
     {
-        if (argc != 4)
+        if (argc != 3)
         {
             printUsage();
             return 1;
         }
 
         std::string host = argv[2];
-        int port = std::atoi(argv[3]);
 
-        if (port <= 0 || port > 65535)
-        {
-            std::cout << "Invalid port number.\n";
-            return 1;
-        }
+        std::cout << "Sending HTTP request to " << host << "...\n";
 
         NetworkingTools::TcpClient client;
-        NetworkingTools::ConnectResult result = client.connectToServer(host, port, 5);
+        NetworkingTools::HttpResponse result = client.sendHttpRequestFollowRedirect(host, 80);
+
         if (!result.success)
         {
-            std::cout << "Failed to connect to " << result.host
-                      << ":" << result.port
-                      << " (" << result.resolvedIP << ")"
-                      << " - " << result.errorMessage << '\n';
+            std::cout << "HTTP request failed: " << result.errorMessage << "\n";
+
+            if (!result.location.empty())
+            {
+                std::cout << "Redirect location: " << result.location << "\n";
+            }
+
             return 1;
         }
 
-        std::cout << "Successfully connected to "
-                  << result.host << ":" << result.port
-                  << " (" << result.resolvedIP << ")\n";
+        std::cout << "Status: " << result.statusCode << " " << result.statusText << "\n";
+        std::cout << "Response body:\n\n";
+        std::cout << result.body << "\n";
 
         return 0;
     }

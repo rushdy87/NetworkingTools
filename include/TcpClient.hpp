@@ -1,29 +1,41 @@
 #pragma once
 
 #include <string>
+#include <map>
 
 namespace NetworkingTools
 {
-    struct ConnectResult
+    struct HttpResponse
     {
         bool success;
-        bool timedOut;
         std::string host;
         int port;
         std::string resolvedIP;
         std::string errorMessage;
+
+        std::string rawResponse;
+        std::string body;
+
+        int statusCode;
+        std::string statusText;
+        std::map<std::string, std::string> headers;
+
+        bool isRedirect;
+        std::string location; // For storing the redirect location if the response is a redirect
     };
 
     class TcpClient
     {
     public:
-        ConnectResult connectToServer(const std::string& host, int port, int timeoutSeconds = 5) const;
+        HttpResponse sendHttpRequest(const std::string& host, int port, const std::string& path = "/") const;
+        HttpResponse sendHttpRequestFollowRedirect(const std::string& host, int port, const std::string& path = "/") const;
+
+    private:
+        HttpResponse parseHttpResponse(
+            const std::string& rawResponse,
+            const std::string& host,
+            int port,
+            const std::string& resolvedIP
+        ) const;
     };
 }
-
-/** NOTES:
- * - The `TcpClient` class is responsible for establishing TCP connections to a specified server.
- * - The `ConnectResult` struct encapsulates the result of a connection attempt, including 
- *   success status, host, port, resolved IP, and any error message.
- * - We will use "DNSResolver.hpp" for resolving hostnames to IP addresses.
- */
