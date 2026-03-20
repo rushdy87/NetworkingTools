@@ -1,69 +1,66 @@
-#include "../include/DNSResolver.hpp"
+#include "DNSResolver.hpp"
 
-#include <cstring> // For memset
-#include <netdb.h> // For getaddrinfo, freeaddrinfo, and gai_strerror
-#include <arpa/inet.h> // For inet_ntop
-#include <sys/socket.h> // For AF_INET and SOCK_STREAM
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <cstring>
+#include <iostream>
 
 namespace NetworkingTools
 {
-    std::string DNSResolver::resolve(const std::string& hostname) const
+    std::vector<ResolvedAddress> DNSResolver::resolveAll(const std::string& hostname) const
     {
-        // 1) Set up hints and result structures for getaddrinfo.
-        struct addrinfo hints; // Hints structure to specify criteria for selecting socket address structures.
-        struct addrinfo* result = nullptr;
+        struct addrinfo hints;
+        struct addrinfo* results = nullptr;
+        std::vector<ResolvedAddress> addresses;
 
         std::memset(&hints, 0, sizeof(hints));
-        hints.ai_family = AF_INET; // Use IPv4 addresses, not taking into account IPv6 for now.
-        hints.ai_socktype = SOCK_STREAM; // Use TCP socket type, which is common for most applications.
+        hints.ai_family = AF_UNSPEC;       // IPv4 or IPv6, for IPv4-only use AF_INET, for IPv6-only use AF_INET6
+        hints.ai_socktype = SOCK_STREAM;   // TCP-style results
 
-        int status = getaddrinfo(hostname.c_str(), nullptr, &hints, &result);
+        int status = getaddrinfo(hostname.c_str(), nullptr, &hints, &results);
+
         if (status != 0)
         {
-            return "Resolution failed: " + std::string(gai_strerror(status));
+            std::cerr << "getaddrinfo failed: " << gai_strerror(status) << '\n';
+            return addresses;
         }
 
-        if (result == nullptr)
+        // results is a linked list of addrinfo structures, we need to iterate through it to extract the IP addresses
+
+        for (struct addrinfo* current = results; current != nullptr; current = current->ai_next)
         {
-            return "Resolution failed: no results found.";
+            // std::cout << "ai_family = " << (current->ai_family == AF_INET ? "AF_INET" : (current->ai_family == AF_INET6 ? "AF_INET6" : "Unknown")) << '\n';
+
+            char ipStr[INET6_ADDRSTRLEN];
+            void* addrPtr = nullptr;
+            std::string family;
+
+            if (current->ai_family == AF_INET)
+            {
+                struct sockaddr_in* ipv4 = reinterpret_cast<struct sockaddr_in*>(current->ai_addr);
+                addrPtr = &(ipv4->sin_addr);
+                family = "IPv4";
+            }
+            else if (current->ai_family == AF_INET6)
+            {
+                struct sockaddr_in6* ipv6 = reinterpret_cast<struct sockaddr_in6*>(current->ai_addr);
+                addrPtr = &(ipv6->sin6_addr);
+                family = "IPv6";
+            }
+            else
+            {
+                continue;
+            }
+
+            const char* converted = inet_ntop(current->ai_family, addrPtr, ipStr, sizeof(ipStr));
+            if (converted != nullptr)
+            {
+                addresses.push_back({ipStr, family});
+            }
         }
 
-        char ipStr[INET_ADDRSTRLEN];
-        struct sockaddr_in* ipv4 = reinterpret_cast<struct sockaddr_in*>(result->ai_addr);
-        void* addrPtr = &(ipv4->sin_addr);
-
-        const char* converted = inet_ntop(AF_INET, addrPtr, ipStr, sizeof(ipStr));
-        if (converted == nullptr)
-        {
-            freeaddrinfo(result);
-            return "Resolution failed: could not convert address to string.";
-        }
-
-        std::string resolvedIP(ipStr);
-        freeaddrinfo(result); // Free the memory allocated by getaddrinfo.
-
-        return resolvedIP;
+        freeaddrinfo(results);
+        return addresses;
     }
 }
-
-
-/** NOTES:
- * - The DNSResolver class provides a method to 
- *   resolve a hostname to an IP address.
- * - The class is designed to be simple and focused on the DNS resolution
- *   functionality, allowing for future expansion if needed.
- * - The use of std::string allows for easy handling of hostnames and IP addresses 
- *   as strings, which is common in networking applications.
- * 
- *  - memset method is used to zero out the hints structure before 
- *    setting its fields, ensuring that all fields are initialized to 
- *    a known state.
- * 
- * - The getaddrinfo function is called with the hostname and hints, and
- *  the result is checked for errors. If there is an error, a descriptive
- *  error message is returned using gai_strerror to convert the error code 
- *  to a string.
- * 
- * - If the resolution is successful, the first result is processed to extract
- *  the IP address, which is then converted to a string format using inet_ntop.
- */
