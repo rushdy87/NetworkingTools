@@ -8,6 +8,7 @@
 #include <cstring>
 #include <cerrno>
 #include <sstream>
+#include <fcntl.h>
 
 namespace NetworkingTools
 {
@@ -259,5 +260,138 @@ namespace NetworkingTools
         firstResponse.success = false;
         firstResponse.errorMessage = "Unsupported redirect format: " + location;
         return firstResponse;
+    }
+
+    ConnectResult TcpClient::connectToIPAddress(const std::string& ip, int port, int timeoutSeconds) const
+    {
+        ConnectResult result;
+        result.success = false;
+        result.timedOut = false;
+        result.host = ip;
+        result.port = port;
+        result.resolvedIP = ip;
+
+        int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+        if (clientSocket < 0)
+        {
+            result.errorMessage = std::strerror(errno);
+            return result;
+        }
+
+        int flags = fcntl(clientSocket, F_GETFL, 0); // Get the current file status flags for the socket
+        if (flags < 0)
+        {
+            result.errorMessage = std::strerror(errno);
+            close(clientSocket);
+            return result;
+        }
+
+        if (fcntl(clientSocket, F_SETFL, flags | O_NONBLOCK) < 0)
+        {
+            result.errorMessage = std::strerror(errno);
+            close(clientSocket);
+            return result;
+        }
+
+        struct sockaddr_in serverAddress;
+        std::memset(&serverAddress, 0, sizeof(serverAddress));
+        serverAddress.sin_family = AF_INET;
+        serverAddress.sin_port = htons(port);
+
+        int conversionStatus = inet_pton(AF_INET, ip.c_str(), &serverAddress.sin_addr);
+        if (conversionStatus <= 0)
+        {
+            result.errorMessage = "Invalid IPv4 address format.";
+            close(clientSocket);
+            return result;
+        }
+
+        int connectionStatus = connect(
+            clientSocket,
+            reinterpret_cast<struct sockaddr*>(&serverAddress),
+            sizeof(serverAddress)
+        );
+
+        if (connectionStatus == 0)
+        {
+            close(clientSocket);
+            result.success = true;
+            return result;
+        }
+
+        if (connectionStatus < 0 && errno != EINPROGRESS)
+        {
+            result.errorMessage = std::strerror(errno);
+            close(clientSocket);
+            return result;
+        }
+
+        fd_set writeSet;
+        FD_ZERO(&writeSet);
+        FD_SET(clientSocket, &writeSet);
+
+        struct timeval timeout;
+        timeout.tv_sec = timeoutSeconds;
+        timeout.tv_usec = 0;
+
+        int selectStatus = select(clientSocket + 1, nullptr, &writeSet, nullptr, &timeout);
+
+        if (selectStatus == 0)
+        {
+            result.timedOut = true;
+            result.errorMessage = "Connection timed out.";
+            close(clientSocket);
+            return result;
+        }
+
+        if (selectStatus < 0)
+        {
+            result.errorMessage = std::strerror(errno);
+            close(clientSocket);
+            return result;
+        }
+
+        int socketError = 0;
+        socklen_t len = sizeof(socketError);
+
+        if (getsockopt(clientSocket, SOL_SOCKET, SO_ERROR, &socketError, &len) < 0)
+        {
+            result.errorMessage = std::strerror(errno);
+            close(clientSocket);
+            return result;
+        }
+
+        if (socketError != 0)
+        {
+            result.errorMessage = std::strerror(socketError);
+            close(clientSocket);
+            return result;
+        }
+
+        close(clientSocket);
+        result.success = true;
+        return result;
+    }
+
+    ConnectResult TcpClient::connectToServer(const std::string& host, int port, int timeoutSeconds) const
+    {
+        DNSResolver resolver;
+        std::string ip = resolver.resolveFirstIPv4(host);
+
+        ConnectResult result;
+        result.success = false;
+        result.timedOut = false;
+        result.host = host;
+        result.port = port;
+
+        if (ip.empty())
+        {
+            result.errorMessage = "Failed to resolve host to IPv4.";
+            return result;
+        }
+
+        result = connectToIPAddress(ip, port, timeoutSeconds);
+        result.host = host;
+        return result;
     }
 }

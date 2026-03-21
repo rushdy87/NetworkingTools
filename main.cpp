@@ -4,12 +4,15 @@
 
 #include "DNSResolver.hpp"
 #include "TcpClient.hpp"
+#include "PortScanner.hpp"
+
 
 void printUsage()
 {
     std::cout << "Usage:\n";
     std::cout << "  ./nettools resolve <hostname>\n";
     std::cout << "  ./nettools connect <hostname> <port>\n";
+    std::cout << "  ./nettools scan <hostname> <startPort> <endPort>\n";
 }
 
 int main(int argc, char* argv[])
@@ -86,6 +89,63 @@ int main(int argc, char* argv[])
 
         return 0;
     }
+
+    if (command == "scan")
+    {
+        if (argc != 3 && argc != 5)
+        {
+            printUsage();
+            return 1;
+        }
+
+        std::string host = argv[2];
+
+        int startPort;
+        int endPort;
+
+        if (argc == 3)
+        {
+            // Default: full scan
+            startPort = 1;
+            endPort = 65535;
+        }
+        else
+        {
+            startPort = std::atoi(argv[3]);
+            endPort = std::atoi(argv[4]);
+
+            if (startPort < 1 || endPort > 65535 || startPort > endPort)
+            {
+                std::cout << "Invalid port range.\n";
+                return 1;
+            }
+        }
+
+        std::cout << "Scanning " << host
+                << " from port " << startPort
+                << " to " << endPort << "...\n";
+
+        NetworkingTools::PortScanner scanner;
+        NetworkingTools::PortScanResult result = scanner.scan(host, startPort, endPort, 2);
+
+        if (!result.success)
+        {
+            std::cout << "Scan failed: " << result.errorMessage << "\n";
+            return 1;
+        }
+
+        std::cout << "Resolved IP: " << result.resolvedIP << "\n";
+
+        for (const auto& entry : result.entries)
+        {
+            std::cout << "Port " << entry.port
+                    << ": " << NetworkingTools::portStatusToString(entry.status)
+                    << "\n";
+        }
+
+        return 0;
+    }
+
 
     printUsage();
     return 1;
