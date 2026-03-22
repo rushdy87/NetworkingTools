@@ -13,6 +13,12 @@ namespace NetworkingTools
         Invalid
     };
 
+    enum class ScanOutputMode
+    {
+        OpenOnly,
+        All
+    };
+
     struct PortScanEntry
     {
         int port;
@@ -34,7 +40,13 @@ namespace NetworkingTools
     class PortScanner
     {
     public:
-        PortScanResult scan(const std::string& host, int startPort, int endPort, int timeoutSeconds = 2) const;
+        PortScanResult scan(
+            const std::string& host,
+            int startPort = 1,
+            int endPort = 65535,
+            int timeoutSeconds = 2,
+            ScanOutputMode outputMode = ScanOutputMode::OpenOnly
+        ) const;
     };
 
     std::string portStatusToString(PortStatus status);

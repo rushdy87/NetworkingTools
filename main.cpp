@@ -99,15 +99,14 @@ int main(int argc, char* argv[])
         }
 
         std::string host = argv[2];
-
         int startPort;
         int endPort;
 
         if (argc == 3)
         {
-            // Default: full scan
             startPort = 1;
             endPort = 65535;
+            std::cout << "Warning: Full port scan may take a long time.\n";
         }
         else
         {
@@ -126,7 +125,13 @@ int main(int argc, char* argv[])
                 << " to " << endPort << "...\n";
 
         NetworkingTools::PortScanner scanner;
-        NetworkingTools::PortScanResult result = scanner.scan(host, startPort, endPort, 2);
+        NetworkingTools::PortScanResult result = scanner.scan(
+            host,
+            startPort,
+            endPort,
+            2,
+            NetworkingTools::ScanOutputMode::OpenOnly
+        );
 
         if (!result.success)
         {
@@ -136,10 +141,17 @@ int main(int argc, char* argv[])
 
         std::cout << "Resolved IP: " << result.resolvedIP << "\n";
 
+        if (result.entries.empty())
+        {
+            std::cout << "No open ports found in the specified range.\n";
+            return 0;
+        }
+
+        std::cout << "Open ports:\n";
         for (const auto& entry : result.entries)
         {
-            std::cout << "Port " << entry.port
-                    << ": " << NetworkingTools::portStatusToString(entry.status)
+            std::cout << "Port " << entry.port << ": "
+                    << NetworkingTools::portStatusToString(entry.status)
                     << "\n";
         }
 

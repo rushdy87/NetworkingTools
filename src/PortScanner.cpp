@@ -23,7 +23,8 @@ namespace NetworkingTools
         const std::string& host,
         int startPort,
         int endPort,
-        int timeoutSeconds
+        int timeoutSeconds,
+        ScanOutputMode outputMode
     ) const
     {
         PortScanResult result;
@@ -74,7 +75,14 @@ namespace NetworkingTools
                 entry.message = connectResult.errorMessage;
             }
 
-            result.entries.push_back(entry);
+            bool shouldStore =
+            (outputMode == ScanOutputMode::All) ||
+            (outputMode == ScanOutputMode::OpenOnly && entry.status == PortStatus::Open);
+            
+            if (shouldStore)
+            {
+                result.entries.push_back(entry);
+            }
         }
 
         result.success = true;
