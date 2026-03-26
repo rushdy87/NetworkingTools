@@ -12,7 +12,10 @@ void printUsage()
     std::cout << "Usage:\n";
     std::cout << "  ./nettools resolve <hostname>\n";
     std::cout << "  ./nettools connect <hostname> <port>\n";
+    std::cout << "  ./nettools http <hostname>\n";
+    std::cout << "  ./nettools scan <hostname>\n";
     std::cout << "  ./nettools scan <hostname> <startPort> <endPort>\n";
+    std::cout << "  ./nettools scan <hostname> <startPort> <endPort> <threadCount>\n";
 }
 
 int main(int argc, char* argv[])
@@ -92,23 +95,18 @@ int main(int argc, char* argv[])
 
     if (command == "scan")
     {
-        if (argc != 3 && argc != 5)
+        if (argc != 3 && argc != 5 && argc != 6)
         {
             printUsage();
             return 1;
         }
 
         std::string host = argv[2];
-        int startPort;
-        int endPort;
+        int startPort = 1;
+        int endPort = 65535;
+        int threadCount = 20;
 
-        if (argc == 3)
-        {
-            startPort = 1;
-            endPort = 65535;
-            std::cout << "Warning: Full port scan may take a long time.\n";
-        }
-        else
+        if (argc >= 5)
         {
             startPort = std::atoi(argv[3]);
             endPort = std::atoi(argv[4]);
@@ -119,18 +117,35 @@ int main(int argc, char* argv[])
                 return 1;
             }
         }
+        else
+        {
+            std::cout << "Warning: Full port scan may take a long time.\n";
+        }
+
+        if (argc == 6)
+        {
+            threadCount = std::atoi(argv[5]);
+
+            if (threadCount < 1)
+            {
+                std::cout << "Invalid thread count.\n";
+                return 1;
+            }
+        }
 
         std::cout << "Scanning " << host
                 << " from port " << startPort
-                << " to " << endPort << "...\n";
+                << " to " << endPort
+                << " using " << threadCount << " threads...\n";
 
         NetworkingTools::PortScanner scanner;
-        NetworkingTools::PortScanResult result = scanner.scan(
+        NetworkingTools::PortScanResult result = scanner.scanMultiThreaded(
             host,
             startPort,
             endPort,
             2,
-            NetworkingTools::ScanOutputMode::OpenOnly
+            NetworkingTools::ScanOutputMode::OpenOnly,
+            threadCount
         );
 
         if (!result.success)
@@ -140,6 +155,9 @@ int main(int argc, char* argv[])
         }
 
         std::cout << "Resolved IP: " << result.resolvedIP << "\n";
+        std::cout << "Open: " << result.openCount
+                << ", Closed: " << result.closedCount
+                << ", TimedOut: " << result.timedOutCount << "\n";
 
         if (result.entries.empty())
         {
@@ -151,13 +169,11 @@ int main(int argc, char* argv[])
         for (const auto& entry : result.entries)
         {
             std::cout << "Port " << entry.port << ": "
-                    << NetworkingTools::portStatusToString(entry.status)
-                    << "\n";
+                    << NetworkingTools::portStatusToString(entry.status) << "\n";
         }
 
         return 0;
     }
-
 
     printUsage();
     return 1;
