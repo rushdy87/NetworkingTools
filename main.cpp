@@ -5,6 +5,7 @@
 #include "DNSResolver.hpp"
 #include "TcpClient.hpp"
 #include "PortScanner.hpp"
+#include "TcpServer.hpp"
 
 
 void printUsage()
@@ -16,6 +17,7 @@ void printUsage()
     std::cout << "  ./nettools scan <hostname>\n";
     std::cout << "  ./nettools scan <hostname> <startPort> <endPort>\n";
     std::cout << "  ./nettools scan <hostname> <startPort> <endPort> <threadCount>\n";
+    std::cout << "  ./nettools server <port>\n";
 }
 
 int main(int argc, char* argv[])
@@ -171,6 +173,41 @@ int main(int argc, char* argv[])
             std::cout << "Port " << entry.port << ": "
                     << NetworkingTools::portStatusToString(entry.status) << "\n";
         }
+
+        return 0;
+    }
+
+    if (command == "server")
+    {
+        if (argc != 3)
+        {
+            printUsage();
+            return 1;
+        }
+
+        int port = std::atoi(argv[2]);
+
+        if (port < 1 || port > 65535)
+        {
+            std::cout << "Invalid port number.\n";
+            return 1;
+        }
+
+        std::cout << "Starting TCP server on port " << port << "...\n";
+        std::cout << "Waiting for one client connection...\n";
+
+        NetworkingTools::TcpServer server;
+        NetworkingTools::ServerResult result = server.start(port);
+
+        if (!result.success)
+        {
+            std::cout << "Server failed: " << result.errorMessage << "\n";
+            return 1;
+        }
+
+        std::cout << "Client connected.\n";
+        std::cout << "Received message: " << result.receivedMessage << "\n";
+        std::cout << "Sent response: " << result.responseMessage << "\n";
 
         return 0;
     }

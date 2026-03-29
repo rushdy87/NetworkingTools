@@ -1,10 +1,22 @@
 #pragma once
 
+#include <string>
+
 namespace NetworkingTools
 {
+
+    struct ServerResult
+    {
+        bool success = false;
+        int port = 0;
+        std::string errorMessage;
+        std::string receivedMessage;
+        std::string responseMessage;
+    };
+
     class TcpServer
     {
     public:
-        bool start(int port) const;
+        ServerResult start(int port) const;
     };
 }
